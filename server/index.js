@@ -10,7 +10,7 @@ import { createServer } from 'http';
 dotenv.config();
 
 const app = express();
-app.use(cors('http://localhost:3000'));
+app.use(cors('*'));
 app.use(express.json());
 
 
@@ -139,6 +139,7 @@ if (!apiKey) {
   console.error('GEMINI_API_KEY is not set in environment variables');
   process.exit(1);
 }
+
 
 
 // Protect the roadmap generation route with authentication
