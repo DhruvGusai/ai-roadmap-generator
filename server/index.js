@@ -14,7 +14,7 @@ app.use(cors('*'));
 app.use(express.json());
 
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roadmap-generator')
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://dhruvgusai7600:Dhuli0991@cluster0.n5akw.mongodb.net/')
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
@@ -46,8 +46,14 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Initialize Gemini API
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({
+    status: 'ok',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+   });
 });
 
 
@@ -55,6 +61,13 @@ app.get('/health', (req, res) => {
 app.post('/api/signup', async (req, res) => {
   try {
     const { email, password, name } = req.body;
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        details: 'Email, password, and name are required'
+      });
+    }
     
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -70,16 +83,27 @@ app.post('/api/signup', async (req, res) => {
 
     await user.save();
     
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
     res.json({ token, user: { id: user._id, email: user.email, name: user.name } });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create user' });
+    console.error('Signup error:', error);
+    res.status(500).json({ 
+      error: 'Failed to create user',
+      details: error.message
+    });
   }
 });
 
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ 
+        error: 'Missing credentials',
+        details: 'Email and password are required'
+      });
+    }
     
     const user = await User.findOne({ email });
     if (!user) {
@@ -88,20 +112,25 @@ app.post('/api/login', async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(400).json({ error: 'Invalid password' });
+      return res.status(400).json({ 
+        error: 'Invalid password',
+        details: 'The provided password is incorrect'
+      });
     }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
     res.json({ token, user: { id: user._id, email: user.email, name: user.name } });
   } catch (error) {
-    res.status(500).json({ error: 'Login failed' });
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      error: 'Login failed',
+      details: error.message
+    });
   }
 });
 
-// Protect the roadmap generation route
-app.post('/api/generate-roadmap', authenticateToken, async (req, res) => {
-  // ... existing roadmap generation code ...
-});
+
+
 
 
 
@@ -111,8 +140,8 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(apiKey);
 
+// Protect the roadmap generation route with authentication
 app.post('/api/generate-roadmap', async (req, res) => {
   try {
     const { career, experience, goals } = req.body;
