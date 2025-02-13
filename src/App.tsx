@@ -1,25 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect} from 'react';
 import { Map } from 'lucide-react';
 import RoadmapForm from './components/RoadmapForm';
 import RoadmapDisplay from './components/RoadmapDisplay';
-import { RoadmapData, UserInput } from './types';
+import AuthModal from './components/AuthModal';
+import Footer from './components/Footer';
+import { RoadmapData, UserInput,user } from './types';
+
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [serverPort, setServerPort] = useState<number | null>(null);
+
+  useEffect(() => {
+    const checkPort = async (port: number) => {
+      try {
+        const response = await fetch(`http://localhost:${port}/health`);
+        if (response.ok) {
+          setServerPort(port);
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    };
+
+    const findServer = async () => {
+      for (let port = 3000; port < 3010; port++) {
+        if (await checkPort(port)) {
+          break;
+        }
+      }
+    };
+
+    findServer();
+  }, []);  // ✅ This should be inside the component
 
   const handleSubmit = async (input: UserInput) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
     try {
       console.log('Sending request with input:', input);
       
+      const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:3000/api/generate-roadmap', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(input),
       });
@@ -41,13 +78,56 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setRoadmap(null);
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center space-x-2">
-            <Map className="h-8 w-8 text-indigo-600" />
-            <h1 className="text-2xl font-bold text-gray-900">AI Roadmap Generator</h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Map className="h-8 w-8 text-indigo-600" />
+              <h1 className="text-2xl font-bold text-gray-900">AI Roadmap Generator</h1>
+            </div>
+            <div>
+              {user ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-gray-700">Welcome, {user.name}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <div className="space-x-4">
+                  <button
+                    onClick={() => {
+                      setAuthMode('login');
+                      setShowAuthModal(true);
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-900"
+                  >
+                    Login
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAuthMode('signup');
+                      setShowAuthModal(true);
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -90,6 +170,19 @@ function App() {
           </div>
         </div>
       </main>
+
+      <Footer />
+
+      {showAuthModal && (
+        <AuthModal
+          mode={authMode}
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={(userData) => {
+            setUser(userData);
+            setShowAuthModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
