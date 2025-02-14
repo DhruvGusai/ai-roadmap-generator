@@ -56,7 +56,7 @@ app.get('/health', (req, res) => {
    });
 });
 
-
+//
 // Auth routes
 app.post('/api/signup', async (req, res) => {
   try {
